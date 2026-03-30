@@ -13,9 +13,16 @@ from sentence_transformers import SentenceTransformer
 
 # Import custom modules
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from routing.router import get_collections_for_query
-from guardrails.guardrails import check_input_guardrails, check_output_guardrails
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+try:
+    from routing.router import get_collections_for_query
+    from guardrails.guardrails import check_input_guardrails, check_output_guardrails
+except ModuleNotFoundError:
+    from backend.routing.router import get_collections_for_query
+    from backend.guardrails.guardrails import (
+        check_input_guardrails,
+        check_output_guardrails,
+    )
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)

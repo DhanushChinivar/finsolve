@@ -62,6 +62,12 @@ npm-debug.log
 yarn-error.log
 dist/
 build/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+frontend/.vercel/
+frontend/.pnp
+frontend/.pnp.*
 
 # OS
 .DS_Store
