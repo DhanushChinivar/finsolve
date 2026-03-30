@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Tuple
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -8,12 +8,13 @@ from dotenv import load_dotenv
 
 from langchain_groq import ChatGroq
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct
+from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
+from sentence_transformers import SentenceTransformer
 
 # Import custom modules
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from routing.router import SemanticRouter, Route, HuggingFaceEncoder
+from routing.router import get_collections_for_query
 from guardrails.guardrails import check_input_guardrails, check_output_guardrails
 
 load_dotenv()
@@ -47,92 +48,35 @@ qdrant_client = QdrantClient(
     url=os.getenv("QDRANT_URL", "http://localhost:6333")
 )
 COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "finbot")
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Initialize semantic router
-encoder = HuggingFaceEncoder()
-routes = [
-    Route(
-        name="finance",
-        utterances=[
-            "What are the quarterly financial results?",
-            "Show me the revenue and expenses",
-            "What's our budget allocation?",
-            "Tell me about investor relations",
-            "What are Q3 earnings?",
-            "Show financial metrics",
-            "What's the annual financial report?",
-        ]
-    ),
-    Route(
-        name="engineering",
-        utterances=[
-            "What's our system architecture?",
-            "Tell me about the API design",
-            "How do we handle incidents?",
-            "What's the SLA for our system?",
-            "Explain the microservices setup",
-            "What's our deployment process?",
-            "Tell me about infrastructure setup",
-        ]
-    ),
-    Route(
-        name="marketing",
-        utterances=[
-            "What are our campaign performance metrics?",
-            "Tell me about brand guidelines",
-            "How much budget for marketing?",
-            "What's our market share?",
-            "Tell me about our campaigns",
-        ]
-    ),
-    Route(
-        name="hr",
-        utterances=[
-            "What's the leave policy?",
-            "Tell me about work hours",
-            "What are HR benefits?",
-            "What's the dress code?",
-            "Tell me about maternity leave",
-        ]
-    ),
-    Route(
-        name="general",
-        utterances=[
-            "Tell me about the company",
-            "What's the office location?",
-            "General company information",
-        ]
-    ),
-]
-
-router = SemanticRouter(
-    routes=routes,
-    encoder=encoder
-)
-
-# Role-based access control
-COLLECTION_ACCESS = {
-    "general":     ["employee", "finance", "engineering", "marketing", "c_level"],
-    "finance":     ["finance", "c_level"],
-    "engineering": ["engineering", "c_level"],
-    "marketing":   ["marketing", "c_level"],
-    "hr":          ["c_level"],
+# Demo users for /login
+DEMO_USERS: Dict[str, Dict[str, str]] = {
+    "alice": {"password": "alice123", "role": "employee",   "user_id": "usr_emp_001"},
+    "bob":   {"password": "bob123",   "role": "finance",    "user_id": "usr_fin_001"},
+    "carol": {"password": "carol123", "role": "engineering","user_id": "usr_eng_001"},
+    "dave":  {"password": "dave123",  "role": "marketing",  "user_id": "usr_mkt_001"},
+    "erin":  {"password": "erin123",  "role": "c_level",    "user_id": "usr_cx_001"},
 }
 
 # ── Pydantic Models ──────────────────────────
 class QueryRequest(BaseModel):
     query: str
-    user_id: str
-    role: str = "employee"  # Default role
+    user_role: str
     top_k: int = 5  # Number of context chunks to retrieve
 
 class QueryResponse(BaseModel):
-    query: str
     answer: str
-    source_collection: str
-    context_chunks: List[str]
-    confidence: float
-    safe: bool
+    sources: List[str]
+    role: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginResponse(BaseModel):
+    user_id: str
+    role: str
 
 class HealthResponse(BaseModel):
     status: str
@@ -140,53 +84,72 @@ class HealthResponse(BaseModel):
     llm_available: bool
 
 # ── Helper Functions ──────────────────────────
-def has_access(role: str, collection: str) -> bool:
-    """Check if user role has access to collection"""
-    allowed_roles = COLLECTION_ACCESS.get(collection, [])
-    return role in allowed_roles
+def build_rbac_filter(allowed_collections: List[str], user_role: str) -> Filter:
+    """Build Qdrant filter based on RBAC metadata"""
+    collection_condition: FieldCondition
+    if len(allowed_collections) == 1:
+        collection_condition = FieldCondition(
+            key="metadata.collection",
+            match=MatchValue(value=allowed_collections[0])
+        )
+    else:
+        collection_condition = FieldCondition(
+            key="metadata.collection",
+            match=MatchAny(any=allowed_collections)
+        )
 
-def retrieve_context(collection: str, query: str, top_k: int = 5) -> tuple[List[str], float]:
-    """Retrieve context from Qdrant based on query"""
+    role_condition = FieldCondition(
+        key="metadata.access_roles",
+        match=MatchAny(any=[user_role])
+    )
+
+    return Filter(must=[collection_condition, role_condition])
+
+def retrieve_context(
+    allowed_collections: List[str],
+    query: str,
+    user_role: str,
+    top_k: int = 5
+) -> Tuple[List[Dict[str, str]], List[str]]:
+    """Retrieve context from Qdrant using RBAC metadata filter"""
     try:
-        from sentence_transformers import SentenceTransformer
-        embedder = SentenceTransformer("all-MiniLM-L6-v2")
-        
         query_vector = embedder.encode(query).tolist()
-        
+
+        query_filter = build_rbac_filter(allowed_collections, user_role)
+
         results = qdrant_client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_vector,
             limit=top_k,
-            query_filter={
-                "must": [
-                    {
-                        "key": "department",
-                        "match": {"value": collection}
-                    }
-                ]
-            }
+            query_filter=query_filter
         )
-        
-        chunks = []
-        confidence = 0.0
-        
-        if results:
-            for result in results:
-                if result.payload:
-                    chunks.append(result.payload.get("chunk", ""))
-                    confidence = max(confidence, result.score)
-        
-        return chunks, confidence
-        
+
+        chunks: List[Dict[str, str]] = []
+        sources: List[str] = []
+
+        for result in results or []:
+            payload = result.payload or {}
+            content = payload.get("content", "")
+            metadata = payload.get("metadata", {})
+            source_doc = metadata.get("source_document", "unknown")
+            if content:
+                chunks.append({"content": content, "source": source_doc})
+            if source_doc and source_doc not in sources:
+                sources.append(source_doc)
+
+        return chunks, sources
+
     except Exception as e:
         logger.error(f"Error retrieving context: {str(e)}")
-        return [], 0.0
+        return [], []
 
-def generate_answer(query: str, context: List[str]) -> str:
+def generate_answer(query: str, context: List[Dict[str, str]]) -> str:
     """Generate answer using LLM with retrieved context"""
     try:
-        context_text = "\n\n".join([f"[Source {i+1}]\n{chunk}" for i, chunk in enumerate(context)])
-        
+        context_text = "\n\n".join(
+            [f"[Source: {item['source']}]\n{item['content']}" for item in context]
+        )
+
         prompt = f"""Based on the following context, answer the question:
 
 Context:
@@ -195,7 +158,7 @@ Context:
 Question: {query}
 
 Answer: Be concise and use information from the context. If the context doesn't contain relevant information, say so."""
-        
+
         response = llm.invoke(prompt)
         return response.content
         
@@ -228,13 +191,20 @@ async def health_check():
         llm_available=llm_ok
     )
 
+@app.post("/login", response_model=LoginResponse)
+async def login(request: LoginRequest):
+    """Demo login endpoint (static users)"""
+    user = DEMO_USERS.get(request.username)
+    if not user or user["password"] != request.password:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    return LoginResponse(user_id=user["user_id"], role=user["role"])
+
 @app.post("/query", response_model=QueryResponse)
 async def query(request: QueryRequest, x_user_id: Optional[str] = Header(None)):
     """Query the FinSolve assistant"""
-    
-    # Use header user_id if provided, otherwise use request user_id
-    user_id = x_user_id or request.user_id
-    
+
+    user_id = x_user_id or request.user_role
+
     # ── Step 1: Input Guardrails ──────────────────────────
     is_safe, guardrail_message = check_input_guardrails(request.query, user_id)
     if not is_safe:
@@ -242,50 +212,37 @@ async def query(request: QueryRequest, x_user_id: Optional[str] = Header(None)):
             status_code=400,
             detail=f"Query blocked: {guardrail_message}"
         )
-    
-    # ── Step 2: Semantic Routing ──────────────────────────
-    route_result = router(request.query)
-    collection = route_result.name if route_result else "general"
-    
-    # ── Step 3: Access Control ──────────────────────────
-    if not has_access(request.role, collection):
+
+    # ── Step 2: Semantic Routing + Role Intersection ──────────────────────────
+    allowed_collections = get_collections_for_query(request.query, request.user_role)
+    if not allowed_collections:
         raise HTTPException(
             status_code=403,
-            detail=f"Access denied: Your role '{request.role}' cannot access '{collection}' collection"
+            detail=f"Access denied: Your role '{request.user_role}' has no access to this query"
         )
-    
-    # ── Step 4: Retrieve Context ──────────────────────────
-    context_chunks, confidence = retrieve_context(collection, request.query, request.top_k)
-    
-    if not context_chunks:
-        logger.warning(f"No context found for query in collection '{collection}'")
-        context_chunks = ["No specific information found in knowledge base"]
-    
-    # ── Step 5: Generate Answer ──────────────────────────
-    answer = generate_answer(request.query, context_chunks)
-    
-    # ── Step 6: Output Guardrails ──────────────────────────
-    is_safe_output, safety_message = check_output_guardrails(answer, user_id)
-    if not is_safe_output:
-        logger.warning(f"Output blocked by guardrails: {safety_message}")
-        answer = "I cannot provide this information due to safety guidelines."
-    
-    return QueryResponse(
-        query=request.query,
-        answer=answer,
-        source_collection=collection,
-        context_chunks=context_chunks[:3],  # Return top 3 for response
-        confidence=confidence,
-        safe=is_safe_output
+
+    # ── Step 3: Retrieve Context with RBAC Filter ──────────────────────────
+    context_chunks, sources = retrieve_context(
+        allowed_collections, request.query, request.user_role, request.top_k
     )
 
-@app.get("/collections")
-async def list_collections():
-    """List available collections and roles"""
-    return {
-        "collections": list(COLLECTION_ACCESS.keys()),
-        "access_control": COLLECTION_ACCESS
-    }
+    if not context_chunks:
+        logger.warning("No context found for query with RBAC filter")
+        context_chunks = [{"content": "No specific information found in knowledge base", "source": "none"}]
+
+    # ── Step 4: Generate Answer ──────────────────────────
+    answer = generate_answer(request.query, context_chunks)
+
+    # ── Step 5: Output Guardrails ──────────────────────────
+    answer, has_warning = check_output_guardrails(answer, sources)
+    if has_warning:
+        logger.warning("Output guardrails warning: response lacks sources")
+
+    return QueryResponse(
+        answer=answer,
+        sources=sources,
+        role=request.user_role
+    )
 
 @app.get("/")
 async def root():
@@ -295,8 +252,8 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "health": "/health",
+            "login": "/login (POST)",
             "query": "/query (POST)",
-            "collections": "/collections",
             "docs": "/docs",
             "redoc": "/redoc"
         }
