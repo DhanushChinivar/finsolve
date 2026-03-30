@@ -1,0 +1,27 @@
+# Document parsing
+docling
+
+# Vector DB
+qdrant-client
+
+# Embeddings + LLM
+langchain
+langchain-groq
+langchain-community
+langchain-huggingface
+sentence-transformers
+
+# Routing
+semantic-router
+
+# Guardrails
+guardrails-ai
+
+# Evaluation
+ragas
+
+# API
+fastapi
+uvicorn
+python-dotenv
+python-multipart
