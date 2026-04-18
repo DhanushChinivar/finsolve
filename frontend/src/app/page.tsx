@@ -194,7 +194,7 @@ export default function Home() {
               {loading ? "Authenticating..." : "Login"}
             </button>
             <p className="text-xs text-slate-500">
-              Demo users: <span className="font-mono">alice / bob / carol / dave / erin</span>
+              Demo users: <span className="font-mono">alice / bob / carol / dave / erin / frank</span>
             </p>
           </div>
 

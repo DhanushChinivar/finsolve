@@ -1,5 +1,6 @@
 # Document parsing
 docling
+python-docx
 
 # Vector DB
 qdrant-client

@@ -18,11 +18,11 @@ client = QdrantClient(url=os.getenv("QDRANT_URL", "http://localhost:6333"))
 COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "finbot")
 
 COLLECTION_ACCESS = {
-    "general":     ["employee", "finance", "engineering", "marketing", "c_level"],
+    "general":     ["employee", "finance", "engineering", "marketing", "hr", "c_level"],
     "finance":     ["finance", "c_level"],
     "engineering": ["engineering", "c_level"],
     "marketing":   ["marketing", "c_level"],
-    "hr":          ["c_level"],
+    "hr":          ["hr", "c_level"],
 }
 
 def split_into_chunks(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:

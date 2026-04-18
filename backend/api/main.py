@@ -36,10 +36,15 @@ app = FastAPI(
 )
 
 # CORS Configuration
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -64,6 +69,7 @@ DEMO_USERS: Dict[str, Dict[str, str]] = {
     "carol": {"password": "carol123", "role": "engineering","user_id": "usr_eng_001"},
     "dave":  {"password": "dave123",  "role": "marketing",  "user_id": "usr_mkt_001"},
     "erin":  {"password": "erin123",  "role": "c_level",    "user_id": "usr_cx_001"},
+    "frank": {"password": "frank123", "role": "hr",         "user_id": "usr_hr_001"},
 }
 
 # ── Pydantic Models ──────────────────────────
