@@ -21,6 +21,16 @@ finance_route = Route(
         "Budget forecast for next year?",
         "Tell me about financial performance",
         "Profit margins and ROI analysis",
+        "What is our net revenue this year?",
+        "How much did we spend on operations?",
+        "What is the EBITDA for this quarter?",
+        "Show me the cash flow statement",
+        "What are the vendor payment details?",
+        "How much is the operating expenditure?",
+        "What is our gross margin percentage?",
+        "Tell me about department budget breakdown",
+        "What were Q1 Q2 Q3 Q4 financial numbers?",
+        "What is our current burn rate?",
     ]
 )
 
@@ -37,6 +47,16 @@ engineering_route = Route(
         "Tell me about infrastructure setup",
         "What are the system requirements?",
         "How does our CI/CD pipeline work?",
+        "What is the uptime percentage for our services?",
+        "Show me the incident report logs",
+        "What happened during the last outage?",
+        "What are the sprint velocity metrics?",
+        "How many bugs were fixed this sprint?",
+        "What is the API rate limit?",
+        "Tell me about the database schema",
+        "What services are in our tech stack?",
+        "What is the mean time to recovery?",
+        "Show me engineering performance metrics",
     ]
 )
 
@@ -53,6 +73,16 @@ marketing_route = Route(
         "How many leads did we generate?",
         "What's our marketing strategy?",
         "Tell me about brand positioning",
+        "What was the total addressable reach in Q1?",
+        "What was LinkedIn follower growth this quarter?",
+        "How many impressions did our campaign get?",
+        "What is our social media engagement rate?",
+        "Show me Q1 Q2 Q3 Q4 marketing performance",
+        "What was the conversion rate for our campaigns?",
+        "Tell me about our digital marketing metrics",
+        "What is our email open rate?",
+        "How did our paid ads perform?",
+        "What is the ROI on our marketing spend?",
     ]
 )
 
@@ -69,6 +99,16 @@ hr_general_route = Route(
         "What's the code of conduct?",
         "Tell me about HR policies",
         "How do I access company resources?",
+        "What is the maternity leave policy?",
+        "How do I apply for sick leave?",
+        "What are the working hours?",
+        "Tell me about the employee referral program",
+        "What is the salary review process?",
+        "How many employees are in the company?",
+        "What is the onboarding process for new hires?",
+        "Tell me about performance appraisal",
+        "What is the dress code policy?",
+        "How do I raise a grievance?",
     ]
 )
 
@@ -85,6 +125,16 @@ cross_department_route = Route(
         "General guidance",
         "Multiple department info",
         "Cross-department information",
+        "What is FinSolve's mission?",
+        "Tell me something about the organization",
+        "How is the company structured?",
+        "What are the company values?",
+        "Give me a summary of the business",
+        "What does the company do across all departments?",
+        "Overview of all teams",
+        "Who are the key stakeholders?",
+        "What is the company culture like?",
+        "Tell me everything about FinSolve",
     ]
 )
 
