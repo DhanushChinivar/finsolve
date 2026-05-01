@@ -1,7 +1,6 @@
 import logging
 from typing import Optional, List
-from semantic_router import Route
-from semantic_router.routers import SemanticRouter
+from semantic_router import Route, RouteLayer
 from dotenv import load_dotenv
 from semantic_router.encoders import HuggingFaceEncoder
 
@@ -110,7 +109,7 @@ ROLE_COLLECTIONS = {
 # ── Initialize router ────────────────────────────────────────────
 encoder = HuggingFaceEncoder()
 routes = [finance_route, engineering_route, marketing_route, hr_general_route, cross_department_route]
-route_layer = SemanticRouter(encoder=encoder, routes=routes, auto_sync="local")
+route_layer = RouteLayer(encoder=encoder, routes=routes)
 
 # ── Main function ────────────────────────────────────────────────
 def get_collections_for_query(query: str, user_role: str) -> Optional[List[str]]:

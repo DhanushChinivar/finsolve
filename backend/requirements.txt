@@ -15,8 +15,6 @@ sentence-transformers
 # Routing
 semantic-router
 
-# Guardrails
-guardrails-ai
 
 # Evaluation
 ragas

@@ -130,12 +130,13 @@ def retrieve_context(
 
         query_filter = build_rbac_filter(allowed_collections, user_role)
 
-        results = qdrant_client.search(
+        results = qdrant_client.query_points(
             collection_name=COLLECTION_NAME,
-            query_vector=query_vector,
+            query=query_vector,
             limit=top_k,
-            query_filter=query_filter
-        )
+            query_filter=query_filter,
+            with_payload=True,
+        ).points
 
         chunks: List[Dict[str, str]] = []
         sources: List[str] = []
